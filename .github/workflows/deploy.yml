@@ -9,6 +9,7 @@ env:
   REGION: us-central1
   SERVICE_NAME: rental-rewards
   REPO_NAME: rental-rewards # Artifact Registry repo name
+  IMAGE: rental-rewards
 
 jobs:
   deploy:
@@ -22,26 +23,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 🔑 Authenticate using Workload Identity Federation
       - name: Google Auth
         id: auth
         uses: 'google-github-actions/auth@v2'
         with:
+          token_format: access_token
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
         uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          project_id: ${{ env.PROJECT_ID }}
 
+      # 🐳 Build Docker image
+      - name: Build Docker image
+        run: |
+          IMAGE_URI=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }}
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          docker build -t $IMAGE_URI .
 
-      - name: Build and Push Container
-        run: |-
-          gcloud builds submit \
-             --tag "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+      # 🔐 Configure Docker for Artifact Registry
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # ⬆️ Push Docker image
+      - name: Push Docker image
+        run: docker push $IMAGE_URI
 
       - name: Deploy to Cloud Run
         run: |-
            gcloud run deploy ${{ env.SERVICE_NAME }} \
-             --image "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
+             --image $IMAGE_URI \
              --region ${{ env.REGION }} \
              --platform managed \
              --allow-unauthenticated
+             --set-env-vars ENVIRONMENT=production
