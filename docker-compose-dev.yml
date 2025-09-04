@@ -1,0 +1,37 @@
+services:
+
+  db:
+    image: postgres:17.6-trixie
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: 422524
+      PGUSER: postgres # for psql and other client utils
+    ports:
+      - "4001:5432"
+    volumes:
+      - rental_rewards_db_data:/var/lib/postgresql/data
+#      - .:/var/snippetbox
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+
+  #  mysql:
+  #    image: mysql:9.0
+  #    command: --default-time-zone=America/New_York
+  #    restart: always
+  #    environment:
+  #      MYSQL_ROOT_PASSWORD: root
+  #      MYSQL_USER: snipo
+  #      MYSQL_PASSWORD: elpasso
+  #    ports:
+  #      - "3310:3306"
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "4002:8080"
+volumes:
+  rental_rewards_db_data:

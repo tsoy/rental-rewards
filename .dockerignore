@@ -1,2 +1,5 @@
 .idea
+.envrc
 Dockerfile
+tmp
+.air.toml
