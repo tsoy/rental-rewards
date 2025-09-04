@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write' # Needed for Workload Identity Federation
-
+    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +37,14 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
+
+      # Install Cloud SQL Auth Proxy to run migrations
+      - name: Install Cloud SQL Auth Proxy
+        run: |
+          curl -o cloud-sql-proxy https://dl.google.com/cloudsql/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          sudo mv cloud-sql-proxy /usr/local/bin/
+
       # 🐳 Build Docker image
       - name: Build Docker image
         run: |
@@ -52,11 +60,29 @@ jobs:
       - name: Push Docker image
         run: docker push $IMAGE_URI
 
+      # Run migrations
+      - name: Run migrations
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          INSTANCE_CONNECTION_NAME: ${{secrets.DB_INST_CONN_NAME}}
+        run: |
+          cloud-sql-proxy ${{secrets.INSTANCE_CONNECTION_NAME}} &
+          sleep 5
+          
+          migrate -path ./migrations -database \
+            "postgres://${{ secrets.DB_USER }}:${{ secrets.DB_PASS }}@localhost:5432/${{ env.DB_NAME }}?sslmode=disable" up
+
+      # Deploy
       - name: Deploy to Cloud Run
+        env:
+          RR_DB_DSN: 'postgres://${{ secrets.DB_USER }}:${{ secrets.DB_PASS }}@/${{ env.DB_NAME }}?host=${{secrets.DB_INST_CONN_NAME}}&sslmode=disable'
+          INSTANCE_CONNECTION_NAME: ${{secrets.DB_INST_CONN_NAME}}
         run: |-
-           gcloud run deploy ${{ env.SERVICE_NAME }} \
-             --image $IMAGE_URI \
-             --region ${{ env.REGION }} \
-             --platform managed \
-             --allow-unauthenticated \
-             --set-env-vars ENVIRONMENT=production
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image $IMAGE_URI \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances="${{ secrets.DB_INST_CONN_NAME }}" \
+            --set-env-vars ENVIRONMENT=production,RR_DB_DSN=${{ env.RR_DB_DSN }}
