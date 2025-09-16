@@ -1,0 +1,17 @@
+{
+  "event_type": "payment.completed",
+  "event_version": "1.0",
+  "id": "evt_123",
+  "occurred_at": "2025-08-30T14:25:00Z",
+  "payment": {
+    "id": "pay_456",
+    "user_id": "usr_789",
+    "amount_cents": 120000,
+    "currency": "USD",
+    "completed_at": "2025-08-30T14:20:00Z"
+  },
+  "metadata": {
+    "trace_id": "trace_abc",
+    "source": "api-service"
+  }
+}

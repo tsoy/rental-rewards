@@ -1,11 +1,14 @@
 package main
 
 import (
+	"cloud.google.com/go/pubsub"
 	"context"
 	"flag"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tsoy/rental-rewards/internal/data"
+	"github.com/tsoy/rental-rewards/internal/events"
+	"github.com/tsoy/rental-rewards/internal/service"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,12 +26,14 @@ type config struct {
 		minOpenConns int
 		maxIdleTime  time.Duration
 	}
+	gcpProjectId string
 }
 
 type application struct {
-	config config
-	logger *slog.Logger
-	models data.Models
+	config   config
+	logger   *slog.Logger
+	models   data.Models
+	services service.Services
 }
 
 func main() {
@@ -42,6 +47,9 @@ func main() {
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "Postgres max open connections")
 	//flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "Postgres max idle connections")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "Postgres max connection idle time")
+
+	flag.StringVar(&cfg.gcpProjectId, "gcp_project_id", os.Getenv("GCP_PROJECT_ID"), "Google Cloud Platform Project ID")
+
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -54,11 +62,22 @@ func main() {
 	}
 
 	defer db.Close()
+
 	logger.Info("DB connection pool established")
+	models := data.NewModels(db)
+
+	pubsubClient, err := pubsub.NewClient(context.Background(), cfg.gcpProjectId)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+	defer pubsubClient.Close()
+
 	app := &application{
-		config: cfg,
-		logger: logger,
-		models: data.NewModels(db),
+		config:   cfg,
+		logger:   logger,
+		models:   models,
+		services: service.NewServices(models, events.NewPubSubPublisher(pubsubClient)),
 	}
 
 	srv := &http.Server{

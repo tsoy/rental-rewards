@@ -85,7 +85,7 @@ func (app *application) createPaymentHandler(w http.ResponseWriter, r *http.Requ
 		Currency:    input.Currency,
 		ExternalRef: idkPtr,
 	}
-	err = app.models.Payments.Insert(context.TODO(), &payment)
+	err = app.services.Payment.CreatePayment(context.TODO(), &payment)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrInvalidUserId), errors.Is(err, data.ErrDuplicateTransaction):

@@ -17,6 +17,13 @@ services:
       interval: 10s
       retries: 10
 
+  pubsub:
+    image: google/cloud-sdk:emulators
+    command: >
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
   #  mysql:
   #    image: mysql:9.0
   #    command: --default-time-zone=America/New_York

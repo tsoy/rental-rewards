@@ -47,13 +47,13 @@ type PaymentModel struct {
 }
 
 func (p PaymentModel) Insert(ctx context.Context, payment *Payment) error {
-	payment.ID = uuid.New()
-	payment.Status = StatusCompleted
-	now := time.Now().UTC()
-	payment.CompletedAt = &now
-	if payment.Currency == "" {
-		payment.Currency = USD
-	}
+	//payment.ID = uuid.New()
+	//payment.Status = StatusCompleted
+	//now := time.Now().UTC()
+	//payment.CompletedAt = &now
+	//if payment.Currency == "" {
+	//	payment.Currency = USD
+	//}
 	tx, err := p.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
